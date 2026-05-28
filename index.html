@@ -99,7 +99,6 @@
                     
                     <div class="mb-6">
                         <div id="total-noise" class="text-6xl font-black text-teal-400 tracking-tight">0.0 <span class="text-xl font-normal text-gray-400">dBA</span></div>
-                        <div id="noise-breakdown" class="text-xs text-gray-400 mt-2 font-mono bg-gray-900 inline-block px-3 py-1 rounded border border-gray-700"></div>
                     </div>
 
                     <div id="noise-level-desc" class="p-3 bg-gray-700 rounded-lg text-sm text-gray-300 mb-6">--</div>
@@ -122,23 +121,24 @@
         let totalRackU = 44; 
         const U_HEIGHT_M = 0.04445;
         
+        // 全域變數：儲存每一 U 的原始噪音聲功率
         window.layerNoisePower = []; 
 
         const defaultDevices = [
             { 
                 name: "1U 密集運算節點", uPos: 40, uHeight: 1, qty: 1,
                 fans: [
-                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 2 },
-                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 3 },
-                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 4 },
-                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 5 }
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 12000, relU: 1, col: 2 },
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 12000, relU: 1, col: 3 },
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 12000, relU: 1, col: 4 },
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 12000, relU: 1, col: 5 }
                 ]
             },
             { 
                 name: "4U GPU 算力伺服器", uPos: 12, uHeight: 4, qty: 1,
                 fans: [
-                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 6000, relU: 1, col: 1 },
-                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 6000, relU: 1, col: 6 }
+                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 4500, relU: 1, col: 1 },
+                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 4500, relU: 1, col: 6 }
                 ]
             }
         ];
@@ -219,6 +219,7 @@
             const id = deviceCount;
             const defaultName = name || `設備 ${id}`;
             
+            // 移除機體噪音輸入，版面更乾淨
             const html = `
                 <div id="device-${id}" class="bg-gray-700 rounded-lg border border-gray-600 shadow-sm overflow-hidden transition-all">
                     <div class="bg-gray-800 hover:bg-gray-750 px-4 py-2.5 flex justify-between items-center cursor-pointer border-b border-gray-600/50" onclick="toggleDevice(${id})">
@@ -226,9 +227,8 @@
                             <span>🖥️</span>
                             <span id="device-title-${id}">${defaultName}</span>
                         </div>
-                        <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-4">
                             <span class="text-[10px] text-gray-400" id="toggle-icon-${id}">▼ 收合</span>
-                            <button onclick="duplicateDevice(${id}); event.stopPropagation();" class="text-xs text-blue-400 hover:text-blue-300 bg-blue-400/10 px-2 py-1 rounded transition">📄 複製</button>
                             <button onclick="removeDevice(${id}); event.stopPropagation();" class="text-xs text-red-400 hover:text-red-300 bg-red-400/10 px-2 py-1 rounded transition">✕ 刪除</button>
                         </div>
                     </div>
@@ -267,35 +267,8 @@
             return id;
         }
 
-        // 💡 複製設備的核心邏輯，完全提取原設備狀態並呼叫建立
-        function duplicateDevice(sourceId) {
-            const sourceRow = document.getElementById(`device-${sourceId}`);
-            if (!sourceRow) return;
-
-            const nameInput = sourceRow.querySelector('input[type="text"]').value;
-            const uPos = parseInt(sourceRow.querySelector('[val-type="uPos"]').value) || 1;
-            const uHeight = parseInt(sourceRow.querySelector('[val-type="uHeight"]').value) || 1;
-            const qty = parseInt(sourceRow.querySelector('[val-type="qty"]').value) || 1;
-
-            const newDevId = addDevice(nameInput + " (複製)", uPos, uHeight, qty);
-
-            const fanGroups = document.getElementById(`fan-container-${sourceId}`).children;
-            for (let fanRow of fanGroups) {
-                const fQty = parseInt(fanRow.querySelector('[val-type="fanQty"]').value) || 1;
-                const fBaseNoise = parseFloat(fanRow.querySelector('[val-type="fanBaseNoise"]').value) || 65;
-                const fRpmNew = parseFloat(fanRow.querySelector('[val-type="fanRpmNew"]').value) || 20000;
-                const fRpmOld = parseFloat(fanRow.querySelector('[val-type="fanRpmOld"]').value) || 20000;
-                const fRelU = parseInt(fanRow.querySelector('[val-type="fanRelativeU"]').value) || 1;
-                const fCol = parseInt(fanRow.querySelector('[val-type="fanCol"]').value) || 3;
-
-                addFanGroup(newDevId, fQty, fBaseNoise, fRpmOld, fRpmNew, fRelU, fCol);
-            }
-
-            calculateNoise();
-        }
-
-        // 預設 qty=1 且 rpmNew=rpmOld (滿載)
-        function addFanGroup(deviceId, qty=1, baseNoise=65, rpmOld=20000, rpmNew=20000, relU=1, col=3) {
+        // 新增滿載噪音參數
+        function addFanGroup(deviceId, qty=2, baseNoise=65, rpmOld=20000, rpmNew=10000, relU=1, col=3) {
             fanGroupCount++;
             const fanId = fanGroupCount;
 
@@ -354,6 +327,7 @@
             calculateNoise();
         }
 
+        // 核心聲學引擎大改寫
         function calculateNoise() {
             const horizDist = parseFloat(document.getElementById('horiz-dist').value) || 1;
             const earHeight = parseFloat(document.getElementById('ear-height').value) || 1.6;
@@ -362,8 +336,8 @@
 
             const deviceRows = document.getElementById('device-list').children;
             
-            let sumOfPowersAtEar = 0; 
-            window.layerNoisePower = Array(totalRackU + 1).fill(0); 
+            let sumOfPowersAtEar = 0; // 用於計算耳膜總噪音
+            window.layerNoisePower = Array(totalRackU + 1).fill(0); // 清空並準備記錄每一層 U 的原始發聲功率
 
             for (let row of deviceRows) {
                 const devId = row.id.split('-')[1];
@@ -384,47 +358,49 @@
 
                     if (fQty <= 0) continue;
 
+                    // 1. 計算該組風扇「單顆」在當前轉速下的噪音 (風機定律)
                     let rpmRatio = fRpmNew / fRpmOld;
                     if (rpmRatio <= 0) rpmRatio = 0.001; 
                     let singleFanCurrentNoise = fBaseNoise + fanLawExponent * Math.log10(rpmRatio);
 
+                    // 2. 加上數量相加的影響 (同組風扇)
                     let totalFanGroupSourceNoise = singleFanCurrentNoise + 10 * Math.log10(fQty);
                     let powerSource = Math.pow(10, totalFanGroupSourceNoise / 10);
 
+                    // 3. 處理每一台設備實體 (qty)
                     for(let q = 0; q < qty; q++) {
                         let startU = uPos + (q * uHeight);
                         let boundedRelU = Math.max(1, Math.min(fRelU, uHeight)); 
                         let targetAbsoluteU = startU + (boundedRelU - 1);
                         
+                        // 記錄該層 U 的總發聲功率 (不含距離衰減，顯示在右側面板用)
                         if(targetAbsoluteU > 0 && targetAbsoluteU <= totalRackU) {
                             window.layerNoisePower[targetAbsoluteU] += powerSource;
                         }
 
+                        // 4. 計算距離衰減 (到達耳膜)
                         let targetDistance = horizDist;
                         if (currentMode === '3d') {
-                            let deviceHeight = targetAbsoluteU * U_HEIGHT_M;
+                            let deviceHeight = (targetAbsoluteU -0.5) * U_HEIGHT_M;
                             let verticalDelta = Math.abs(earHeight - deviceHeight);
                             targetDistance = Math.sqrt(Math.pow(horizDist, 2) + Math.pow(verticalDelta, 2));
                         } else {
-                            targetDistance = horizDist; 
+                            targetDistance = horizDist; // 純水平模式
                         }
 
+                        // 點音源距離衰減公式 (-20log(d/d0))
                         let noiseAtEar = totalFanGroupSourceNoise - 20 * Math.log10(targetDistance / 1);
                         sumOfPowersAtEar += Math.pow(10, noiseAtEar / 10);
                     }
                 }
             }
 
-            let rawEarNoise = 0;
             let finalEarNoise = 0;
-            
             if (sumOfPowersAtEar > 0) {
-                rawEarNoise = 10 * Math.log10(sumOfPowersAtEar);
-                finalEarNoise = rawEarNoise + systemErrorDb;
+                finalEarNoise = (10 * Math.log10(sumOfPowersAtEar)) + systemErrorDb;
             }
 
             document.getElementById('total-noise').innerHTML = `${finalEarNoise.toFixed(1)} <span class="text-xl font-normal text-gray-400">dBA</span>`;
-            document.getElementById('noise-breakdown').innerText = `💡 包含: 原始聲音 ${rawEarNoise.toFixed(1)} dBA + 系統補償 ${systemErrorDb.toFixed(1)} dBA`;
             
             updateDesc(finalEarNoise);
             updateVisual();
@@ -516,20 +492,20 @@
                         </div>` : 
                         `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10 text-teal-700/60 text-[10px]">┆</div>`;
 
+                    // 取得該層 U 的原始噪音數據
                     let layerDbHtml = '';
                     if (window.layerNoisePower[u] > 0) {
                         let layerDb = 10 * Math.log10(window.layerNoisePower[u]);
                         layerDbHtml = `
-                            <div class="flex items-baseline gap-1" title="此層 U 本身發出的總噪音">
-                                <span class="text-[12px] text-amber-400 font-bold">${layerDb.toFixed(1)}</span>
-                                <span class="text-[9px] text-amber-600/80">dBA</span>
-                            </div>
+                            <div class="text-[10px] text-amber-400 font-bold mt-0.5" title="此層 U 本身發出的總噪音">${layerDb.toFixed(1)}</div>
+                            <div class="text-[8px] text-amber-600/70 -mt-1">dBA</div>
                         `;
                     }
 
+                    // 加寬左側標籤區域 (w-16) 來容納噪音數據
                     slot.innerHTML = `
                         <div class="flex items-stretch w-full h-full relative">
-                            <div class="w-24 shrink-0 font-mono text-gray-400 flex flex-row items-center justify-between px-2 bg-gray-900/50 py-1 border-r border-teal-700/30">
+                            <div class="w-16 shrink-0 font-mono text-gray-400 flex flex-col items-center justify-center bg-gray-900/50 py-1 border-r border-teal-700/30">
                                 <div class="text-[11px]">【${u}U】</div>
                                 ${layerDbHtml}
                             </div>
@@ -541,9 +517,8 @@
                     `;
                 } else {
                     slot.className = "bg-gray-800 text-gray-600 border border-gray-700/40 flex items-stretch min-h-[32px]";
-                    
                     slot.innerHTML = `
-                        <div class="w-24 shrink-0 font-mono flex flex-row items-center justify-start px-2 bg-gray-900/50 border-r border-gray-700/30">
+                        <div class="w-16 shrink-0 font-mono flex items-center justify-center bg-gray-900/50 border-r border-gray-700/30">
                             <div class="text-[11px]">【${u}U】</div>
                         </div>
                         <div class="flex-grow flex items-center justify-center text-[11px]">--- 空置 ---</div>
