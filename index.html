@@ -6,6 +6,7 @@
     <title>精密級多風扇噪音模擬器 (物理級精確版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* 用於控制設備面板「收合/展開」的 CSS 類別 */
         .collapsed { display: none; }
     </style>
 </head>
@@ -99,6 +100,7 @@
                     
                     <div class="mb-6">
                         <div id="total-noise" class="text-6xl font-black text-teal-400 tracking-tight">0.0 <span class="text-xl font-normal text-gray-400">dBA</span></div>
+                        <div id="noise-breakdown" class="text-xs text-gray-400 mt-2 font-mono bg-gray-900 inline-block px-3 py-1 rounded border border-gray-700"></div>
                     </div>
 
                     <div id="noise-level-desc" class="p-3 bg-gray-700 rounded-lg text-sm text-gray-300 mb-6">--</div>
@@ -115,58 +117,68 @@
     </div>
 
     <script>
-        let deviceCount = 0;
-        let fanGroupCount = 0;
-        let currentMode = '3d';
-        let totalRackU = 44; 
-        const U_HEIGHT_M = 0.04445;
+        // --- 1. 全域變數宣告 ---
+        let deviceCount = 0;      // 用來給每個設備獨立的 ID
+        let fanGroupCount = 0;    // 用來給每個風扇組獨立的 ID
+        let currentMode = '3d';   // 當前計算模式 ('3d' 或 '2d')
+        let totalRackU = 44;      // 機櫃總高度，預設 44U
+        const U_HEIGHT_M = 0.04445; // 1U 的物理真實高度 (公尺)，用來算 3D 距離
         
-        // 全域變數：儲存每一 U 的原始噪音聲功率
+        // 這個陣列非常重要！用來記錄「每一層 U」的原始聲功率 (Acoustic Power)
+        // 陣列長度會跟隨 totalRackU 動態改變
         window.layerNoisePower = []; 
 
+        // --- 2. 初始預設設備資料 ---
         const defaultDevices = [
             { 
                 name: "1U 密集運算節點", uPos: 40, uHeight: 1, qty: 1,
                 fans: [
-                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 12000, relU: 1, col: 2 },
-                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 12000, relU: 1, col: 3 },
-                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 12000, relU: 1, col: 4 },
-                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 12000, relU: 1, col: 5 }
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 2 },
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 3 },
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 4 },
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 5 }
                 ]
             },
             { 
                 name: "4U GPU 算力伺服器", uPos: 12, uHeight: 4, qty: 1,
                 fans: [
-                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 4500, relU: 1, col: 1 },
-                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 4500, relU: 1, col: 6 }
+                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 6000, relU: 1, col: 1 },
+                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 6000, relU: 1, col: 6 }
                 ]
             }
         ];
 
+        // --- 3. 網頁載入完成時的初始化 ---
         window.onload = function() {
             totalRackU = parseInt(document.getElementById('total-rack-u').value) || 44;
             updateRackTitle();
 
+            // 迴圈讀取預設資料，並在畫面上生成對應的 HTML 控制項
             defaultDevices.forEach(d => {
                 const devId = addDevice(d.name, d.uPos, d.uHeight, d.qty);
                 d.fans.forEach(f => addFanGroup(devId, f.qty, f.baseNoise, f.rpmOld, f.rpmNew, f.relU, f.col));
             });
-            calculateNoise();
+            calculateNoise(); // 初始計算一次
         };
 
+        // --- 4. 介面與事件控制函數 ---
+        
+        // 更新機櫃總 U 數
         function updateRackSize() {
             const newVal = parseInt(document.getElementById('total-rack-u').value);
             if (newVal && newVal > 0) {
                 totalRackU = newVal;
                 updateRackTitle();
-                calculateNoise(); 
+                calculateNoise(); // 改變大小後，必須重新計算與繪圖
             }
         }
 
+        // 更新右側機櫃標題文字
         function updateRackTitle() {
             document.getElementById('rack-title').innerText = `${totalRackU}U 機櫃配置圖 (顯示單層原始噪音)`;
         }
 
+        // 切換 3D / 2D 模式
         function setMode(mode) {
             currentMode = mode;
             const btn3d = document.getElementById('btn-mode-3d');
@@ -174,6 +186,7 @@
             const earHeightDiv = document.getElementById('div-ear-height');
             const badge = document.getElementById('current-mode-badge');
 
+            // 改變按鈕的外觀與隱藏/顯示人耳高度輸入框
             if (mode === '3d') {
                 btn3d.className = "py-1.5 px-3 rounded-md font-medium text-xs transition bg-teal-600 text-white shadow";
                 btn2d.className = "py-1.5 px-3 rounded-md font-medium text-xs transition text-gray-400 hover:text-white";
@@ -187,12 +200,14 @@
                 earHeightDiv.style.pointerEvents = "none";
                 badge.innerText = "傳統純水平模式";
             }
-            calculateNoise();
+            calculateNoise(); // 切換模式後重新計算
         }
 
+        // 展開/收合單一設備的詳細設定
         function toggleDevice(id) {
             const content = document.getElementById(`device-content-${id}`);
             const icon = document.getElementById(`toggle-icon-${id}`);
+            // 使用 classList 切換 'collapsed' (也就是 display: none)
             if (content.classList.contains('collapsed')) {
                 content.classList.remove('collapsed');
                 icon.innerText = "▼ 收合";
@@ -202,6 +217,7 @@
             }
         }
 
+        // 一鍵收合所有設備
         function collapseAll() {
             const contents = document.querySelectorAll('[id^="device-content-"]');
             const icons = document.querySelectorAll('[id^="toggle-icon-"]');
@@ -209,17 +225,22 @@
             icons.forEach(el => el.innerText = "▶ 展開");
         }
 
+        // 同步輸入框的設備名稱到標題列，並觸發重繪
         function syncDeviceTitle(id, val) {
             document.getElementById(`device-title-${id}`).innerText = val || `設備 ${id}`;
             updateVisual();
         }
 
+        // --- 5. DOM 操作 (新增/複製/刪除 設備與風扇) ---
+
+        // 新增一個設備面板
         function addDevice(name="", uPos=20, uHeight=1, qty=1) {
             deviceCount++;
             const id = deviceCount;
             const defaultName = name || `設備 ${id}`;
             
-            // 移除機體噪音輸入，版面更乾淨
+            // 這裡撰寫一大包 HTML 字串，包含設備的外框、輸入框、按鈕等
+            // 並使用 insertAdjacentHTML 插入到 device-list 裡面
             const html = `
                 <div id="device-${id}" class="bg-gray-700 rounded-lg border border-gray-600 shadow-sm overflow-hidden transition-all">
                     <div class="bg-gray-800 hover:bg-gray-750 px-4 py-2.5 flex justify-between items-center cursor-pointer border-b border-gray-600/50" onclick="toggleDevice(${id})">
@@ -227,8 +248,9 @@
                             <span>🖥️</span>
                             <span id="device-title-${id}">${defaultName}</span>
                         </div>
-                        <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-3">
                             <span class="text-[10px] text-gray-400" id="toggle-icon-${id}">▼ 收合</span>
+                            <button onclick="duplicateDevice(${id}); event.stopPropagation();" class="text-xs text-blue-400 hover:text-blue-300 bg-blue-400/10 px-2 py-1 rounded transition">📄 複製</button>
                             <button onclick="removeDevice(${id}); event.stopPropagation();" class="text-xs text-red-400 hover:text-red-300 bg-red-400/10 px-2 py-1 rounded transition">✕ 刪除</button>
                         </div>
                     </div>
@@ -264,11 +286,42 @@
             `;
             document.getElementById('device-list').insertAdjacentHTML('beforeend', html);
             updateVisual();
-            return id;
+            return id; // 回傳新增的 ID，以便後續給它加風扇
         }
 
-        // 新增滿載噪音參數
-        function addFanGroup(deviceId, qty=2, baseNoise=65, rpmOld=20000, rpmNew=10000, relU=1, col=3) {
+        // 複製設備功能
+        function duplicateDevice(sourceId) {
+            // 1. 先抓取來源設備的 DOM 節點
+            const sourceRow = document.getElementById(`device-${sourceId}`);
+            if (!sourceRow) return;
+
+            // 2. 讀取來源設備的基本屬性
+            const nameInput = sourceRow.querySelector('input[type="text"]').value;
+            const uPos = parseInt(sourceRow.querySelector('[val-type="uPos"]').value) || 1;
+            const uHeight = parseInt(sourceRow.querySelector('[val-type="uHeight"]').value) || 1;
+            const qty = parseInt(sourceRow.querySelector('[val-type="qty"]').value) || 1;
+
+            // 3. 呼叫 addDevice 生成一個新的設備
+            const newDevId = addDevice(nameInput + " (複製)", uPos, uHeight, qty);
+
+            // 4. 迴圈讀取來源設備裡面「所有」的風扇組，並逐一複製到新設備裡
+            const fanGroups = document.getElementById(`fan-container-${sourceId}`).children;
+            for (let fanRow of fanGroups) {
+                const fQty = parseInt(fanRow.querySelector('[val-type="fanQty"]').value) || 1;
+                const fBaseNoise = parseFloat(fanRow.querySelector('[val-type="fanBaseNoise"]').value) || 65;
+                const fRpmNew = parseFloat(fanRow.querySelector('[val-type="fanRpmNew"]').value) || 20000;
+                const fRpmOld = parseFloat(fanRow.querySelector('[val-type="fanRpmOld"]').value) || 20000;
+                const fRelU = parseInt(fanRow.querySelector('[val-type="fanRelativeU"]').value) || 1;
+                const fCol = parseInt(fanRow.querySelector('[val-type="fanCol"]').value) || 3;
+
+                addFanGroup(newDevId, fQty, fBaseNoise, fRpmOld, fRpmNew, fRelU, fCol);
+            }
+
+            calculateNoise(); // 複製完成後重新計算總結果
+        }
+
+        // 新增風扇組 (預設為滿轉、1顆)
+        function addFanGroup(deviceId, qty=1, baseNoise=65, rpmOld=20000, rpmNew=20000, relU=1, col=3) {
             fanGroupCount++;
             const fanId = fanGroupCount;
 
@@ -327,8 +380,11 @@
             calculateNoise();
         }
 
-        // 核心聲學引擎大改寫
+        // =========================================================
+        // 核心聲學引擎：負責所有物理公式的計算
+        // =========================================================
         function calculateNoise() {
+            // 讀取全域環境參數
             const horizDist = parseFloat(document.getElementById('horiz-dist').value) || 1;
             const earHeight = parseFloat(document.getElementById('ear-height').value) || 1.6;
             const systemErrorDb = parseFloat(document.getElementById('system-error').value) || 0; 
@@ -336,19 +392,24 @@
 
             const deviceRows = document.getElementById('device-list').children;
             
-            let sumOfPowersAtEar = 0; // 用於計算耳膜總噪音
-            window.layerNoisePower = Array(totalRackU + 1).fill(0); // 清空並準備記錄每一層 U 的原始發聲功率
+            // sumOfPowersAtEar 用於收集所有傳遞到「耳膜」位置的能量加總
+            let sumOfPowersAtEar = 0; 
+            
+            // 初始化/清空記錄每一層 U 發聲能量的陣列 (為了右側畫面渲染使用)
+            window.layerNoisePower = Array(totalRackU + 1).fill(0); 
 
+            // 遍歷所有建立的設備
             for (let row of deviceRows) {
                 const devId = row.id.split('-')[1];
-                const qty = parseInt(row.querySelector('[val-type="qty"]').value) || 0;
-                const uPos = parseInt(row.querySelector('[val-type="uPos"]').value) || 1;
-                const uHeight = parseInt(row.querySelector('[val-type="uHeight"]').value) || 1;
+                const qty = parseInt(row.querySelector('[val-type="qty"]').value) || 0;       // 設備數量
+                const uPos = parseInt(row.querySelector('[val-type="uPos"]').value) || 1;     // 起始高度
+                const uHeight = parseInt(row.querySelector('[val-type="uHeight"]').value) || 1; // 設備佔用 U 數
 
                 if (qty <= 0) continue;
 
                 const fanGroups = document.getElementById(`fan-container-${devId}`).children;
 
+                // 遍歷該設備內的所有風扇群組
                 for (let fanRow of fanGroups) {
                     const fQty = parseInt(fanRow.querySelector('[val-type="fanQty"]').value) || 0;
                     const fBaseNoise = parseFloat(fanRow.querySelector('[val-type="fanBaseNoise"]').value) || 0;
@@ -358,54 +419,76 @@
 
                     if (fQty <= 0) continue;
 
-                    // 1. 計算該組風扇「單顆」在當前轉速下的噪音 (風機定律)
+                    // --- 物理步驟 1：風機定律 (Fan Law) ---
+                    // 計算轉速改變導致的噪音變化。公式： L_new = L_old + N * log10(RPM_new / RPM_old)
                     let rpmRatio = fRpmNew / fRpmOld;
-                    if (rpmRatio <= 0) rpmRatio = 0.001; 
+                    if (rpmRatio <= 0) rpmRatio = 0.001; // 防呆，避免對數算出負無限大
                     let singleFanCurrentNoise = fBaseNoise + fanLawExponent * Math.log10(rpmRatio);
 
-                    // 2. 加上數量相加的影響 (同組風扇)
+                    // --- 物理步驟 2：同組風扇數量加成 ---
+                    // 將單顆噪音加上數量的對數倍數。公式： L_group = L_single + 10 * log10(數量)
                     let totalFanGroupSourceNoise = singleFanCurrentNoise + 10 * Math.log10(fQty);
+                    
+                    // --- 物理步驟 3：轉換為線性聲功率 (Acoustic Power) ---
+                    // 為了能在後續跟不同來源的聲音相加，必須將 dBA 轉為 10 的次方能量
                     let powerSource = Math.pow(10, totalFanGroupSourceNoise / 10);
 
-                    // 3. 處理每一台設備實體 (qty)
+                    // 處理這款設備被放置了「多少台 (qty)」
                     for(let q = 0; q < qty; q++) {
                         let startU = uPos + (q * uHeight);
+                        // 防呆處理：確保風扇相對高度不會超出設備本身高度
                         let boundedRelU = Math.max(1, Math.min(fRelU, uHeight)); 
+                        // 計算出這個風扇真正在機櫃裡的絕對第幾 U
                         let targetAbsoluteU = startU + (boundedRelU - 1);
                         
-                        // 記錄該層 U 的總發聲功率 (不含距離衰減，顯示在右側面板用)
+                        // --- 物理步驟 4：單層能量累積 (給右側視覺牆用) ---
+                        // 將這組風扇的能量，累加進專屬的該層 U 中 (這是未經距離衰減的「原始聲音」)
                         if(targetAbsoluteU > 0 && targetAbsoluteU <= totalRackU) {
                             window.layerNoisePower[targetAbsoluteU] += powerSource;
                         }
 
-                        // 4. 計算距離衰減 (到達耳膜)
+                        // --- 物理步驟 5：計算距離衰減 (到達耳膜) ---
                         let targetDistance = horizDist;
                         if (currentMode === '3d') {
-                            let deviceHeight = (targetAbsoluteU -0.5) * U_HEIGHT_M;
+                            // 使用畢氏定理 (a^2 + b^2 = c^2) 計算音源到耳朵的斜邊直線距離
+                            let deviceHeight = (targetAbsoluteU - 0.5) * U_HEIGHT_M;
                             let verticalDelta = Math.abs(earHeight - deviceHeight);
                             targetDistance = Math.sqrt(Math.pow(horizDist, 2) + Math.pow(verticalDelta, 2));
                         } else {
-                            targetDistance = horizDist; // 純水平模式
+                            // 2D 水平模式：忽略高度差，只看水平距離
+                            targetDistance = horizDist; 
                         }
 
-                        // 點音源距離衰減公式 (-20log(d/d0))
+                        // 點音源距離衰減公式： L_ear = L_source - 20 * log10(距離 / 參考距離1m)
                         let noiseAtEar = totalFanGroupSourceNoise - 20 * Math.log10(targetDistance / 1);
+                        
+                        // 將到達耳朵的聲音轉換為能量後，加入總和
                         sumOfPowersAtEar += Math.pow(10, noiseAtEar / 10);
                     }
                 }
             }
 
+            let rawEarNoise = 0;
             let finalEarNoise = 0;
+            
+            // --- 物理步驟 6：總結算與系統誤差 ---
             if (sumOfPowersAtEar > 0) {
-                finalEarNoise = (10 * Math.log10(sumOfPowersAtEar)) + systemErrorDb;
+                // 將所有能量總和轉回 dBA (取 log10 乘 10)
+                rawEarNoise = 10 * Math.log10(sumOfPowersAtEar);
+                // 加上環境系統誤差常數 (Buffer)
+                finalEarNoise = rawEarNoise + systemErrorDb;
             }
 
+            // 更新畫面上方大大的總分貝數字
             document.getElementById('total-noise').innerHTML = `${finalEarNoise.toFixed(1)} <span class="text-xl font-normal text-gray-400">dBA</span>`;
+            // 顯示詳細的拆解算式
+            document.getElementById('noise-breakdown').innerText = `💡 包含: 原始聲音 ${rawEarNoise.toFixed(1)} dBA + 系統補償 ${systemErrorDb.toFixed(1)} dBA`;
             
             updateDesc(finalEarNoise);
-            updateVisual();
+            updateVisual(); // 最後呼叫重繪機櫃的函數
         }
 
+        // 根據噪音級別給出生活情境的提示文字
         function updateDesc(db) {
             let desc = "";
             if (db < 40) desc = "🍃 安靜。";
@@ -415,13 +498,19 @@
             document.getElementById('noise-level-desc').innerText = desc;
         }
 
+        // =========================================================
+        // 視覺渲染引擎：負責畫出右側的 44U(或自訂) 機櫃圖
+        // =========================================================
         function updateVisual() {
             const visualContainer = document.getElementById('rack-visual');
             visualContainer.innerHTML = '';
             
+            // 建立一個符合機櫃總高度的空陣列，用來儲存每一 U 的繪圖資訊
             let rackSlots = Array(totalRackU + 1).fill(null);
 
             const deviceRows = document.getElementById('device-list').children;
+            
+            // 第一次遍歷設備：計算出哪些 U 被佔用了
             for (let row of deviceRows) {
                 const devId = row.id.split('-')[1];
                 const name = row.querySelector('input[type="text"]').value || "未命名";
@@ -429,20 +518,23 @@
                 const uHeight = parseInt(row.querySelector('[val-type="uHeight"]').value) || 1;
                 const qty = parseInt(row.querySelector('[val-type="qty"]').value) || 1;
 
+                // 處理連續放置的多台設備 (qty)
                 for(let q = 0; q < qty; q++) {
                     let startU = uPos + (q * uHeight);
+                    // 根據設備的 U數高度 進行空間佔用
                     for(let h = 0; h < uHeight; h++) {
                         let currentU = startU + h;
                         if(currentU <= totalRackU) {
                             rackSlots[currentU] = {
                                 name: name,
-                                isTop: (h === uHeight - 1),
-                                fans: [[], [], [], [], [], []] 
+                                isTop: (h === uHeight - 1), // 標記這 U 是不是該設備的頂層 (用來顯示設備名稱)
+                                fans: [[], [], [], [], [], []] // 初始化 6 個欄位的風扇陣列
                             };
                         }
                     }
                 }
 
+                // 第二次遍歷：把風扇塞進剛才佔用好的格子裡的對應欄位 (Col)
                 const fanGroups = document.getElementById(`fan-container-${devId}`).children;
                 for (let fanRow of fanGroups) {
                     const fQty = parseInt(fanRow.querySelector('[val-type="fanQty"]').value) || 0;
@@ -451,6 +543,7 @@
 
                     if (fQty <= 0) continue;
 
+                    // 確保欄位在 1~6 之間，因為陣列索引是 0~5
                     const safeColIndex = Math.max(1, Math.min(6, fCol)) - 1; 
 
                     for(let q = 0; q < qty; q++) {
@@ -459,53 +552,63 @@
                         let targetAbsoluteU = startU + (boundedRelU - 1);
                         
                         if(targetAbsoluteU <= totalRackU && rackSlots[targetAbsoluteU]) {
+                            // 將風扇數量推入該格、該欄的陣列中
                             rackSlots[targetAbsoluteU].fans[safeColIndex].push(fQty);
                         }
                     }
                 }
             }
 
+            // 開始實際生成 DOM 節點，因為機櫃是從上往下數的，所以使用反向迴圈 (U數遞減)
             for (let u = totalRackU; u >= 1; u--) {
                 const slot = document.createElement('div');
                 
                 if (rackSlots[u]) {
+                    // --- 計算邊框邏輯 (把同一個設備的多 U 合併顯示) ---
                     let borderClass = "border-x border-teal-500";
+                    // 如果是最頂部，或者是上方格子是別的設備，就加上 上邊框
                     if (u === totalRackU || !rackSlots[u+1] || rackSlots[u+1].name !== rackSlots[u].name) {
                         borderClass += " border-t border-teal-500"; 
                     }
+                    // 如果是最底部，或者是下方格子是別的設備，就加上 下邊框
                     if (u === 1 || !rackSlots[u-1] || rackSlots[u-1].name !== rackSlots[u].name) {
                         borderClass += " border-b border-teal-500"; 
                     }
 
                     slot.className = `bg-teal-950/90 text-teal-300 font-bold min-h-[32px] relative overflow-hidden ${borderClass}`;
                     
+                    // 生成 6 個欄位的 HTML 區塊
                     let colsHtml = '';
                     for(let i=0; i<6; i++) {
+                        // 讀取這格風扇數量，生成圖示
                         let badges = rackSlots[u].fans[i].map(qty => `<span class="bg-teal-600/90 text-teal-50 text-[9px] px-0.5 rounded shadow z-0">🌀${qty}</span>`).join('');
                         let borderStyle = i > 0 ? "border-l border-teal-800/30" : "";
                         colsHtml += `<div class="flex items-center justify-center w-1/6 h-full ${borderStyle}">${badges}</div>`;
                     }
 
+                    // 疊加文字 (如果是該設備頂部 U，則顯示完整名稱，否則顯示虛線)
                     let titleHtml = rackSlots[u].isTop ? 
                         `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                             <span class="bg-teal-950/90 px-2 py-0.5 rounded text-[11px] truncate shadow-md max-w-[85%] border border-teal-800/50">${rackSlots[u].name}</span>
                         </div>` : 
                         `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10 text-teal-700/60 text-[10px]">┆</div>`;
 
-                    // 取得該層 U 的原始噪音數據
+                    // 從 layerNoisePower 中讀取剛才算好的「該層獨立噪音」並轉回 dBA
                     let layerDbHtml = '';
                     if (window.layerNoisePower[u] > 0) {
                         let layerDb = 10 * Math.log10(window.layerNoisePower[u]);
                         layerDbHtml = `
-                            <div class="text-[10px] text-amber-400 font-bold mt-0.5" title="此層 U 本身發出的總噪音">${layerDb.toFixed(1)}</div>
-                            <div class="text-[8px] text-amber-600/70 -mt-1">dBA</div>
+                            <div class="flex items-baseline gap-1" title="此層 U 本身發出的總噪音">
+                                <span class="text-[12px] text-amber-400 font-bold">${layerDb.toFixed(1)}</span>
+                                <span class="text-[9px] text-amber-600/80">dBA</span>
+                            </div>
                         `;
                     }
 
-                    // 加寬左側標籤區域 (w-16) 來容納噪音數據
+                    // 組裝單一層 U 的完整 HTML (左側標籤寬度為 w-24, 水平對齊)
                     slot.innerHTML = `
                         <div class="flex items-stretch w-full h-full relative">
-                            <div class="w-16 shrink-0 font-mono text-gray-400 flex flex-col items-center justify-center bg-gray-900/50 py-1 border-r border-teal-700/30">
+                            <div class="w-24 shrink-0 font-mono text-gray-400 flex flex-row items-center justify-between px-2 bg-gray-900/50 py-1 border-r border-teal-700/30">
                                 <div class="text-[11px]">【${u}U】</div>
                                 ${layerDbHtml}
                             </div>
@@ -516,9 +619,10 @@
                         </div>
                     `;
                 } else {
+                    // 如果該 U 是空置的狀態
                     slot.className = "bg-gray-800 text-gray-600 border border-gray-700/40 flex items-stretch min-h-[32px]";
                     slot.innerHTML = `
-                        <div class="w-16 shrink-0 font-mono flex items-center justify-center bg-gray-900/50 border-r border-gray-700/30">
+                        <div class="w-24 shrink-0 font-mono flex flex-row items-center justify-start px-2 bg-gray-900/50 border-r border-gray-700/30">
                             <div class="text-[11px]">【${u}U】</div>
                         </div>
                         <div class="flex-grow flex items-center justify-center text-[11px]">--- 空置 ---</div>
