@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>44U Rack 精密級多風扇噪音模擬器 (滿版旗艦版)</title>
+    <title>精密級多風扇噪音模擬器 (物理級精確版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 隱藏元素用的簡單 class */
         .collapsed { display: none; }
     </style>
 </head>
@@ -14,26 +13,33 @@
 
     <div class="max-w-none w-full px-2">
         <header class="mb-8 border-b border-gray-700 pb-4">
-            <h1 class="text-3xl font-bold text-teal-400">🔬 44U Rack 精密級多風扇噪音模擬器</h1>
-            <p class="text-gray-400 mt-2">支援自訂設備高度與 6 欄位風扇精確落點，設備面板支援點擊收合，右側視覺牆具備動態空間佔用與自動合併功能。</p>
+            <h1 class="text-3xl font-bold text-teal-400">🔬 精密級多風扇噪音模擬器</h1>
+            <p class="text-gray-400 mt-2">基於風扇真實物理模型：從滿轉額定噪音推算降轉噪音，支援每一層 U 獨立噪音顯示與 3D 空間距離衰減。</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-10 gap-8">
             
-            <div class="lg:col-span-6 space-y-6">
+            <div class="lg:col-span-5 space-y-6">
                 
                 <div class="bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-700">
                     <h2 class="text-lg font-semibold mb-3 text-gray-300">⚙️ 系統核心參數設定</h2>
                     
-                    <div class="mb-4">
-                        <label class="block text-xs text-gray-400 mb-1.5">計算模式：</label>
-                        <div class="grid grid-cols-2 gap-3 bg-gray-900 p-1 rounded-lg border border-gray-700 max-w-md">
-                            <button id="btn-mode-3d" onclick="setMode('3d')" class="py-1.5 px-3 rounded-md font-medium text-xs transition bg-teal-600 text-white shadow">
-                                🧍 3D 空間人耳模式
-                            </button>
-                            <button id="btn-mode-2d" onclick="setMode('2d')" class="py-1.5 px-3 rounded-md font-medium text-xs transition text-gray-400 hover:text-white">
-                                📏 傳統純水平模式
-                            </button>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1.5">計算模式：</label>
+                            <div class="grid grid-cols-2 gap-3 bg-gray-900 p-1 rounded-lg border border-gray-700">
+                                <button id="btn-mode-3d" onclick="setMode('3d')" class="py-1.5 px-3 rounded-md font-medium text-xs transition bg-teal-600 text-white shadow">
+                                    🧍 3D 空間
+                                </button>
+                                <button id="btn-mode-2d" onclick="setMode('2d')" class="py-1.5 px-3 rounded-md font-medium text-xs transition text-gray-400 hover:text-white">
+                                    📏 傳統純水平
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-teal-400 font-medium mb-1.5">機櫃總高度 (U數):</label>
+                            <input type="number" id="total-rack-u" value="44" min="1" max="200" oninput="updateRackSize()"
+                                class="w-full bg-gray-700 border border-gray-600 rounded px-2.5 py-1.5 text-sm text-white font-bold focus:outline-none focus:border-teal-500">
                         </div>
                     </div>
 
@@ -55,7 +61,6 @@
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="block font-medium text-gray-400">系統誤差補償 (Buffer dBA):</label>
-                                    <span id="val-error-hint" class="text-[10px] text-gray-500">預設 +3.0</span>
                                 </div>
                                 <input type="number" id="system-error" value="3.0" step="0.1" oninput="calculateNoise()"
                                     class="w-full bg-gray-700 border border-gray-600 rounded px-2.5 py-1 text-amber-400 font-bold focus:outline-none focus:border-amber-500 text-sm">
@@ -63,7 +68,6 @@
                             <div>
                                 <div class="flex justify-between items-center mb-1">
                                     <label class="block font-medium text-gray-400">風扇轉速次方係數 (N):</label>
-                                    <span class="text-[10px] text-gray-500">N · log10(RPM_New/RPM_Old)</span>
                                 </div>
                                 <input type="number" id="fan-law-exponent" value="50" min="40" max="70" step="1" oninput="calculateNoise()"
                                     class="w-full bg-gray-700 border border-gray-600 rounded px-2.5 py-1 text-amber-400 font-bold focus:outline-none focus:border-amber-500 text-sm">
@@ -82,25 +86,26 @@
                 </div>
 
                 <div class="bg-gray-800 p-5 rounded-xl shadow-lg border border-gray-700">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-200">🖥️ 機櫃設備列表 <span class="text-xs text-gray-400 font-normal ml-2">(點擊設備標題可展開/收合)</span></h2>
+                    <h2 class="text-xl font-semibold mb-4 text-gray-200">🖥️ 機櫃設備列表</h2>
                     <div id="device-list" class="space-y-3">
                         </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-4">
+            <div class="lg:col-span-5">
                 <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-teal-900 sticky top-6 text-center">
-                    <h2 class="text-xl font-semibold mb-2 text-gray-200">📢 模擬總噪音結果</h2>
-                    <div id="current-mode-badge" class="inline-block text-[11px] bg-teal-950 text-teal-400 border border-teal-800 px-2 py-0.5 rounded mb-4">3D 空間人耳模式</div>
+                    <h2 class="text-xl font-semibold mb-2 text-gray-200">📢 模擬總噪音結果 (耳膜接收)</h2>
+                    <div id="current-mode-badge" class="inline-block text-[11px] bg-teal-950 text-teal-400 border border-teal-800 px-2 py-0.5 rounded mb-4">3D 空間距離衰減運算中</div>
                     
                     <div class="mb-6">
                         <div id="total-noise" class="text-6xl font-black text-teal-400 tracking-tight">0.0 <span class="text-xl font-normal text-gray-400">dBA</span></div>
+                        <div id="noise-breakdown" class="text-xs text-gray-400 mt-2 font-mono bg-gray-900 inline-block px-3 py-1 rounded border border-gray-700"></div>
                     </div>
 
                     <div id="noise-level-desc" class="p-3 bg-gray-700 rounded-lg text-sm text-gray-300 mb-6">--</div>
 
                     <div>
-                        <h3 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3 text-left">44U 機櫃配置圖 (6欄位)</h3>
+                        <h3 id="rack-title" class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3 text-left">44U 機櫃配置圖 (顯示單層原始噪音)</h3>
                         <div id="rack-visual" class="border border-gray-700 rounded bg-gray-950 h-[52rem] overflow-y-auto p-3 flex flex-col gap-0.5 text-xs">
                             </div>
                     </div>
@@ -114,36 +119,53 @@
         let deviceCount = 0;
         let fanGroupCount = 0;
         let currentMode = '3d';
+        let totalRackU = 44; 
         const U_HEIGHT_M = 0.04445;
+        
+        window.layerNoisePower = []; 
 
-        // 預設設備改為展示 6 欄位的分佈
         const defaultDevices = [
             { 
-                name: "1U 密集運算節點", noise: 50, uPos: 40, uHeight: 1, qty: 1,
+                name: "1U 密集運算節點", uPos: 40, uHeight: 1, qty: 1,
                 fans: [
-                    { qty: 1, rpmOld: 10000, rpmNew: 12000, relU: 1, col: 2 },
-                    { qty: 1, rpmOld: 10000, rpmNew: 12000, relU: 1, col: 3 },
-                    { qty: 1, rpmOld: 10000, rpmNew: 12000, relU: 1, col: 4 },
-                    { qty: 1, rpmOld: 10000, rpmNew: 12000, relU: 1, col: 5 }
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 2 },
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 3 },
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 4 },
+                    { qty: 1, baseNoise: 65, rpmOld: 20000, rpmNew: 20000, relU: 1, col: 5 }
                 ]
             },
             { 
-                name: "4U GPU 算力伺服器", noise: 58, uPos: 12, uHeight: 4, qty: 1,
+                name: "4U GPU 算力伺服器", uPos: 12, uHeight: 4, qty: 1,
                 fans: [
-                    // 位於 4U 底層，最左邊與最右邊各 3 顆
-                    { qty: 3, rpmOld: 6000, rpmNew: 6500, relU: 1, col: 1 },
-                    { qty: 3, rpmOld: 6000, rpmNew: 6500, relU: 1, col: 6 }
+                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 6000, relU: 1, col: 1 },
+                    { qty: 3, baseNoise: 62, rpmOld: 6000, rpmNew: 6000, relU: 1, col: 6 }
                 ]
             }
         ];
 
         window.onload = function() {
+            totalRackU = parseInt(document.getElementById('total-rack-u').value) || 44;
+            updateRackTitle();
+
             defaultDevices.forEach(d => {
-                const devId = addDevice(d.name, d.noise, d.uPos, d.uHeight, d.qty);
-                d.fans.forEach(f => addFanGroup(devId, f.qty, f.rpmOld, f.rpmNew, f.relU, f.col));
+                const devId = addDevice(d.name, d.uPos, d.uHeight, d.qty);
+                d.fans.forEach(f => addFanGroup(devId, f.qty, f.baseNoise, f.rpmOld, f.rpmNew, f.relU, f.col));
             });
             calculateNoise();
         };
+
+        function updateRackSize() {
+            const newVal = parseInt(document.getElementById('total-rack-u').value);
+            if (newVal && newVal > 0) {
+                totalRackU = newVal;
+                updateRackTitle();
+                calculateNoise(); 
+            }
+        }
+
+        function updateRackTitle() {
+            document.getElementById('rack-title').innerText = `${totalRackU}U 機櫃配置圖 (顯示單層原始噪音)`;
+        }
 
         function setMode(mode) {
             currentMode = mode;
@@ -157,7 +179,7 @@
                 btn2d.className = "py-1.5 px-3 rounded-md font-medium text-xs transition text-gray-400 hover:text-white";
                 earHeightDiv.style.opacity = "1";
                 earHeightDiv.style.pointerEvents = "auto";
-                badge.innerText = "3D 空間人耳模式";
+                badge.innerText = "3D 空間距離衰減運算中";
             } else {
                 btn2d.className = "py-1.5 px-3 rounded-md font-medium text-xs transition bg-teal-600 text-white shadow";
                 btn3d.className = "py-1.5 px-3 rounded-md font-medium text-xs transition text-gray-400 hover:text-white";
@@ -168,7 +190,6 @@
             calculateNoise();
         }
 
-        // 切換單一設備的展開與收合
         function toggleDevice(id) {
             const content = document.getElementById(`device-content-${id}`);
             const icon = document.getElementById(`toggle-icon-${id}`);
@@ -181,7 +202,6 @@
             }
         }
 
-        // 收合全部設備
         function collapseAll() {
             const contents = document.querySelectorAll('[id^="device-content-"]');
             const icons = document.querySelectorAll('[id^="toggle-icon-"]');
@@ -189,13 +209,12 @@
             icons.forEach(el => el.innerText = "▶ 展開");
         }
 
-        // 同步標題列文字
         function syncDeviceTitle(id, val) {
             document.getElementById(`device-title-${id}`).innerText = val || `設備 ${id}`;
             updateVisual();
         }
 
-        function addDevice(name="", noise=50, uPos=20, uHeight=1, qty=1) {
+        function addDevice(name="", uPos=20, uHeight=1, qty=1) {
             deviceCount++;
             const id = deviceCount;
             const defaultName = name || `設備 ${id}`;
@@ -207,40 +226,35 @@
                             <span>🖥️</span>
                             <span id="device-title-${id}">${defaultName}</span>
                         </div>
-                        <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-3">
                             <span class="text-[10px] text-gray-400" id="toggle-icon-${id}">▼ 收合</span>
+                            <button onclick="duplicateDevice(${id}); event.stopPropagation();" class="text-xs text-blue-400 hover:text-blue-300 bg-blue-400/10 px-2 py-1 rounded transition">📄 複製</button>
                             <button onclick="removeDevice(${id}); event.stopPropagation();" class="text-xs text-red-400 hover:text-red-300 bg-red-400/10 px-2 py-1 rounded transition">✕ 刪除</button>
                         </div>
                     </div>
                     
                     <div id="device-content-${id}" class="p-4 space-y-3">
                         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center text-sm">
-                            <div class="md:col-span-4">
+                            <div class="md:col-span-5">
                                 <label class="block text-xs text-gray-400 mb-1">設備名稱</label>
                                 <input type="text" value="${defaultName}" oninput="syncDeviceTitle(${id}, this.value)" class="w-full bg-gray-800 rounded px-2 py-1 text-teal-300 border border-gray-600 focus:outline-none">
                             </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-xs text-gray-400 mb-1">機體基本噪音(dBA)</label>
-                                <input type="number" val-type="noise" value="${noise}" oninput="calculateNoise()" class="w-full bg-gray-800 rounded px-2 py-1 text-white border border-gray-600 focus:outline-none">
-                            </div>
                             
-                            <div class="md:col-span-2">
+                            <div class="md:col-span-3">
                                 <label class="block text-xs text-gray-400 mb-1">位置 / 高度</label>
                                 <div class="flex gap-1">
-                                    <input type="number" val-type="uPos" value="${uPos}" min="1" max="44" oninput="calculateNoise()" class="w-1/2 bg-gray-800 rounded text-center text-yellow-400 border border-gray-600 text-sm py-1 focus:outline-none" title="起始 U 位">
-                                    <input type="number" val-type="uHeight" value="${uHeight}" min="1" max="44" oninput="calculateNoise()" class="w-1/2 bg-gray-800 rounded text-center text-orange-400 border border-gray-600 text-sm py-1 focus:outline-none" title="設備高度 (U數)">
+                                    <input type="number" val-type="uPos" value="${uPos}" min="1" oninput="calculateNoise()" class="w-1/2 bg-gray-800 rounded text-center text-yellow-400 border border-gray-600 text-sm py-1 focus:outline-none" title="起始 U 位">
+                                    <input type="number" val-type="uHeight" value="${uHeight}" min="1" oninput="calculateNoise()" class="w-1/2 bg-gray-800 rounded text-center text-orange-400 border border-gray-600 text-sm py-1 focus:outline-none" title="設備高度 (U數)">
                                 </div>
                             </div>
-
-                            <div class="md:col-span-3 text-center">
-                                <label class="block text-xs text-gray-400 mb-1">進階風扇配置</label>
-                                <button onclick="addFanGroup(${id})" class="w-full bg-gray-600 hover:bg-gray-500 text-teal-300 border border-dashed border-teal-500/50 rounded py-1 text-xs transition font-medium">
-                                    ⚙️ ＋新增一組風扇
-                                </button>
-                            </div>
-                            <div class="md:col-span-1">
+                            <div class="md:col-span-2">
                                 <label class="block text-xs text-gray-400 mb-1">數量(台)</label>
                                 <input type="number" val-type="qty" value="${qty}" min="1" oninput="calculateNoise()" class="w-full bg-gray-800 rounded px-1 py-1 text-white border border-gray-600 text-center focus:outline-none">
+                            </div>
+                            <div class="md:col-span-2 text-center flex items-end">
+                                <button onclick="addFanGroup(${id})" class="w-full bg-gray-600 hover:bg-gray-500 text-teal-300 border border-dashed border-teal-500/50 rounded py-1.5 text-xs transition font-medium">
+                                    ＋加風扇
+                                </button>
                             </div>
                         </div>
 
@@ -253,43 +267,74 @@
             return id;
         }
 
-        // 新增 6 欄位設定的風扇群組
-        function addFanGroup(deviceId, qty=2, rpmOld=5000, rpmNew=5000, relU=1, col=3) {
+        // 💡 複製設備的核心邏輯，完全提取原設備狀態並呼叫建立
+        function duplicateDevice(sourceId) {
+            const sourceRow = document.getElementById(`device-${sourceId}`);
+            if (!sourceRow) return;
+
+            const nameInput = sourceRow.querySelector('input[type="text"]').value;
+            const uPos = parseInt(sourceRow.querySelector('[val-type="uPos"]').value) || 1;
+            const uHeight = parseInt(sourceRow.querySelector('[val-type="uHeight"]').value) || 1;
+            const qty = parseInt(sourceRow.querySelector('[val-type="qty"]').value) || 1;
+
+            const newDevId = addDevice(nameInput + " (複製)", uPos, uHeight, qty);
+
+            const fanGroups = document.getElementById(`fan-container-${sourceId}`).children;
+            for (let fanRow of fanGroups) {
+                const fQty = parseInt(fanRow.querySelector('[val-type="fanQty"]').value) || 1;
+                const fBaseNoise = parseFloat(fanRow.querySelector('[val-type="fanBaseNoise"]').value) || 65;
+                const fRpmNew = parseFloat(fanRow.querySelector('[val-type="fanRpmNew"]').value) || 20000;
+                const fRpmOld = parseFloat(fanRow.querySelector('[val-type="fanRpmOld"]').value) || 20000;
+                const fRelU = parseInt(fanRow.querySelector('[val-type="fanRelativeU"]').value) || 1;
+                const fCol = parseInt(fanRow.querySelector('[val-type="fanCol"]').value) || 3;
+
+                addFanGroup(newDevId, fQty, fBaseNoise, fRpmOld, fRpmNew, fRelU, fCol);
+            }
+
+            calculateNoise();
+        }
+
+        // 預設 qty=1 且 rpmNew=rpmOld (滿載)
+        function addFanGroup(deviceId, qty=1, baseNoise=65, rpmOld=20000, rpmNew=20000, relU=1, col=3) {
             fanGroupCount++;
             const fanId = fanGroupCount;
 
             const html = `
                 <div id="fan-group-${fanId}" class="bg-gray-800/80 p-2 rounded border border-gray-600/50 text-xs relative">
-                    <button onclick="removeFanGroup(${fanId})" class="absolute top-1.5 right-2 text-gray-500 hover:text-red-400 font-bold text-sm bg-gray-700/50 rounded-full w-5 h-5 flex items-center justify-center">✕</button>
+                    <button onclick="removeFanGroup(${fanId})" class="absolute top-1.5 right-2 text-gray-500 hover:text-red-400 font-bold text-sm bg-gray-700/50 rounded-full w-5 h-5 flex items-center justify-center z-10">✕</button>
                     
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center pr-6">
-                        <div class="md:col-span-3 flex items-center gap-1.5">
+                        <div class="md:col-span-2 flex items-center gap-1.5">
                             <span class="text-teal-500 text-sm">🌀</span>
                             <div class="w-full">
                                 <label class="text-[10px] text-gray-400 block mb-0.5">數量</label>
-                                <input type="number" val-type="fanQty" value="${qty}" min="1" oninput="calculateNoise()" class="w-full bg-gray-700 rounded px-1.5 py-0.5 text-white border border-gray-600 focus:outline-none">
-                            </div>
-                        </div>
-                        <div class="md:col-span-4">
-                            <label class="text-[10px] text-gray-400 block mb-0.5">目前 / 額定 RPM</label>
-                            <div class="flex gap-1">
-                                <input type="number" val-type="fanRpmNew" value="${rpmNew}" step="100" oninput="calculateNoise()" class="w-1/2 bg-gray-700 rounded text-center text-white border border-gray-600 text-[11px] py-1 focus:outline-none">
-                                <input type="number" val-type="fanRpmOld" value="${rpmOld}" step="100" oninput="calculateNoise()" class="w-1/2 bg-gray-700 rounded text-center text-gray-400 border border-gray-600 text-[11px] py-1 focus:outline-none">
+                                <input type="number" val-type="fanQty" value="${qty}" min="1" oninput="calculateNoise()" class="w-full bg-gray-700 rounded px-1.5 py-1 text-white border border-gray-600 focus:outline-none">
                             </div>
                         </div>
                         <div class="md:col-span-2">
-                            <label class="text-[10px] text-gray-400 block mb-0.5">相對高度 (U)</label>
-                            <input type="number" val-type="fanRelativeU" value="${relU}" min="1" oninput="calculateNoise()" class="w-full bg-gray-700 rounded px-1.5 py-1 text-teal-300 border border-gray-600 text-[11px] focus:outline-none" title="1 = 設備最下層">
+                            <label class="text-[10px] text-gray-400 block mb-0.5" title="單顆風扇在最高轉速下的原始噪音">額定噪音(dBA)</label>
+                            <input type="number" val-type="fanBaseNoise" value="${baseNoise}" step="0.1" oninput="calculateNoise()" class="w-full bg-gray-700 rounded px-1.5 py-1 text-white border border-gray-600 focus:outline-none">
                         </div>
-                        <div class="md:col-span-3">
-                            <label class="text-[10px] text-gray-400 block mb-0.5">6欄位視覺位置</label>
+                        <div class="md:col-span-4">
+                            <label class="text-[10px] text-gray-400 block mb-0.5">目前 / 額定轉速 (RPM)</label>
+                            <div class="flex gap-1">
+                                <input type="number" val-type="fanRpmNew" value="${rpmNew}" step="100" oninput="calculateNoise()" class="w-1/2 bg-gray-700 rounded text-center text-amber-300 font-medium border border-gray-600 text-[11px] py-1 focus:outline-none" title="目前降轉後的轉速">
+                                <input type="number" val-type="fanRpmOld" value="${rpmOld}" step="100" oninput="calculateNoise()" class="w-1/2 bg-gray-700 rounded text-center text-gray-400 border border-gray-600 text-[11px] py-1 focus:outline-none" title="最高額定轉速">
+                            </div>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="text-[10px] text-gray-400 block mb-0.5">所在高度 (U)</label>
+                            <input type="number" val-type="fanRelativeU" value="${relU}" min="1" oninput="calculateNoise()" class="w-full bg-gray-700 rounded px-1.5 py-1 text-teal-300 border border-gray-600 text-[11px] focus:outline-none">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="text-[10px] text-gray-400 block mb-0.5">水平位置</label>
                             <select val-type="fanCol" onchange="calculateNoise()" class="w-full bg-gray-700 rounded px-1 py-1 text-teal-300 border border-gray-600 text-[11px] focus:outline-none">
-                                <option value="1" ${col===1 ? 'selected' : ''}>第 1 欄 (極左)</option>
+                                <option value="1" ${col===1 ? 'selected' : ''}>第 1 欄 (左)</option>
                                 <option value="2" ${col===2 ? 'selected' : ''}>第 2 欄</option>
                                 <option value="3" ${col===3 ? 'selected' : ''}>第 3 欄</option>
                                 <option value="4" ${col===4 ? 'selected' : ''}>第 4 欄</option>
                                 <option value="5" ${col===5 ? 'selected' : ''}>第 5 欄</option>
-                                <option value="6" ${col===6 ? 'selected' : ''}>第 6 欄 (極右)</option>
+                                <option value="6" ${col===6 ? 'selected' : ''}>第 6 欄 (右)</option>
                             </select>
                         </div>
                     </div>
@@ -316,62 +361,72 @@
             const fanLawExponent = parseFloat(document.getElementById('fan-law-exponent').value) || 50;
 
             const deviceRows = document.getElementById('device-list').children;
-            let sumOfPowers = 0;
+            
+            let sumOfPowersAtEar = 0; 
+            window.layerNoisePower = Array(totalRackU + 1).fill(0); 
 
             for (let row of deviceRows) {
                 const devId = row.id.split('-')[1];
-                const baseNoise = parseFloat(row.querySelector('[val-type="noise"]').value) || 0;
                 const qty = parseInt(row.querySelector('[val-type="qty"]').value) || 0;
                 const uPos = parseInt(row.querySelector('[val-type="uPos"]').value) || 1;
                 const uHeight = parseInt(row.querySelector('[val-type="uHeight"]').value) || 1;
 
                 if (qty <= 0) continue;
 
-                let fanSumPower = 0;
                 const fanGroups = document.getElementById(`fan-container-${devId}`).children;
 
                 for (let fanRow of fanGroups) {
                     const fQty = parseInt(fanRow.querySelector('[val-type="fanQty"]').value) || 0;
+                    const fBaseNoise = parseFloat(fanRow.querySelector('[val-type="fanBaseNoise"]').value) || 0;
                     const fRpmNew = parseFloat(fanRow.querySelector('[val-type="fanRpmNew"]').value) || 1;
                     const fRpmOld = parseFloat(fanRow.querySelector('[val-type="fanRpmOld"]').value) || 1;
+                    const fRelU = parseInt(fanRow.querySelector('[val-type="fanRelativeU"]').value) || 1;
 
                     if (fQty <= 0) continue;
 
-                    let fanBaseNoise = 40; 
-                    let adjustedFanNoise = fanBaseNoise + fanLawExponent * Math.log10(fRpmNew / fRpmOld);
-                    let totalFanGroupNoise = adjustedFanNoise + 10 * Math.log10(fQty);
+                    let rpmRatio = fRpmNew / fRpmOld;
+                    if (rpmRatio <= 0) rpmRatio = 0.001; 
+                    let singleFanCurrentNoise = fBaseNoise + fanLawExponent * Math.log10(rpmRatio);
 
-                    fanSumPower += Math.pow(10, totalFanGroupNoise / 10);
+                    let totalFanGroupSourceNoise = singleFanCurrentNoise + 10 * Math.log10(fQty);
+                    let powerSource = Math.pow(10, totalFanGroupSourceNoise / 10);
+
+                    for(let q = 0; q < qty; q++) {
+                        let startU = uPos + (q * uHeight);
+                        let boundedRelU = Math.max(1, Math.min(fRelU, uHeight)); 
+                        let targetAbsoluteU = startU + (boundedRelU - 1);
+                        
+                        if(targetAbsoluteU > 0 && targetAbsoluteU <= totalRackU) {
+                            window.layerNoisePower[targetAbsoluteU] += powerSource;
+                        }
+
+                        let targetDistance = horizDist;
+                        if (currentMode === '3d') {
+                            let deviceHeight = targetAbsoluteU * U_HEIGHT_M;
+                            let verticalDelta = Math.abs(earHeight - deviceHeight);
+                            targetDistance = Math.sqrt(Math.pow(horizDist, 2) + Math.pow(verticalDelta, 2));
+                        } else {
+                            targetDistance = horizDist; 
+                        }
+
+                        let noiseAtEar = totalFanGroupSourceNoise - 20 * Math.log10(targetDistance / 1);
+                        sumOfPowersAtEar += Math.pow(10, noiseAtEar / 10);
+                    }
                 }
-
-                let finalUnitNoise = baseNoise;
-                if (fanSumPower > 0) {
-                    let combinedFanDb = 10 * Math.log10(fanSumPower);
-                    finalUnitNoise = 10 * Math.log10(Math.pow(10, baseNoise / 10) + Math.pow(10, combinedFanDb / 10));
-                }
-
-                let unitTotalNoise = finalUnitNoise + 10 * Math.log10(qty);
-
-                let targetDistance = horizDist;
-                if (currentMode === '3d') {
-                    const centerUPos = uPos + (uHeight - 1) / 2; 
-                    const deviceHeight = centerUPos * U_HEIGHT_M;
-                    const verticalDelta = Math.abs(earHeight - deviceHeight);
-                    targetDistance = Math.sqrt(Math.pow(horizDist, 2) + Math.pow(verticalDelta, 2));
-                }
-
-                let noiseAtEar = unitTotalNoise - 20 * Math.log10(targetDistance / 1);
-                sumOfPowers += Math.pow(10, noiseAtEar / 10);
             }
 
-            let finalNoise = 0;
-            if (sumOfPowers > 0) {
-                finalNoise = (10 * Math.log10(sumOfPowers)) + systemErrorDb;
-            }
-
-            document.getElementById('total-noise').innerHTML = `${finalNoise.toFixed(1)} <span class="text-xl font-normal text-gray-400">dBA</span>`;
+            let rawEarNoise = 0;
+            let finalEarNoise = 0;
             
-            updateDesc(finalNoise);
+            if (sumOfPowersAtEar > 0) {
+                rawEarNoise = 10 * Math.log10(sumOfPowersAtEar);
+                finalEarNoise = rawEarNoise + systemErrorDb;
+            }
+
+            document.getElementById('total-noise').innerHTML = `${finalEarNoise.toFixed(1)} <span class="text-xl font-normal text-gray-400">dBA</span>`;
+            document.getElementById('noise-breakdown').innerText = `💡 包含: 原始聲音 ${rawEarNoise.toFixed(1)} dBA + 系統補償 ${systemErrorDb.toFixed(1)} dBA`;
+            
+            updateDesc(finalEarNoise);
             updateVisual();
         }
 
@@ -388,8 +443,7 @@
             const visualContainer = document.getElementById('rack-visual');
             visualContainer.innerHTML = '';
             
-            // 6 欄位架構：將 fans 結構改為 Array 長度 6
-            let rackSlots = Array(45).fill(null);
+            let rackSlots = Array(totalRackU + 1).fill(null);
 
             const deviceRows = document.getElementById('device-list').children;
             for (let row of deviceRows) {
@@ -403,11 +457,11 @@
                     let startU = uPos + (q * uHeight);
                     for(let h = 0; h < uHeight; h++) {
                         let currentU = startU + h;
-                        if(currentU <= 44) {
+                        if(currentU <= totalRackU) {
                             rackSlots[currentU] = {
                                 name: name,
                                 isTop: (h === uHeight - 1),
-                                fans: [[], [], [], [], [], []] // 6 個欄位陣列 (Index 0~5)
+                                fans: [[], [], [], [], [], []] 
                             };
                         }
                     }
@@ -421,7 +475,6 @@
 
                     if (fQty <= 0) continue;
 
-                    // 防呆：確保欄位在 1~6 之間，對應 index 0~5
                     const safeColIndex = Math.max(1, Math.min(6, fCol)) - 1; 
 
                     for(let q = 0; q < qty; q++) {
@@ -429,19 +482,19 @@
                         let boundedRelU = Math.max(1, Math.min(fRelU, uHeight)); 
                         let targetAbsoluteU = startU + (boundedRelU - 1);
                         
-                        if(targetAbsoluteU <= 44 && rackSlots[targetAbsoluteU]) {
+                        if(targetAbsoluteU <= totalRackU && rackSlots[targetAbsoluteU]) {
                             rackSlots[targetAbsoluteU].fans[safeColIndex].push(fQty);
                         }
                     }
                 }
             }
 
-            for (let u = 44; u >= 1; u--) {
+            for (let u = totalRackU; u >= 1; u--) {
                 const slot = document.createElement('div');
                 
                 if (rackSlots[u]) {
                     let borderClass = "border-x border-teal-500";
-                    if (u === 44 || !rackSlots[u+1] || rackSlots[u+1].name !== rackSlots[u].name) {
+                    if (u === totalRackU || !rackSlots[u+1] || rackSlots[u+1].name !== rackSlots[u].name) {
                         borderClass += " border-t border-teal-500"; 
                     }
                     if (u === 1 || !rackSlots[u-1] || rackSlots[u-1].name !== rackSlots[u].name) {
@@ -450,26 +503,36 @@
 
                     slot.className = `bg-teal-950/90 text-teal-300 font-bold min-h-[32px] relative overflow-hidden ${borderClass}`;
                     
-                    // 產生 6 欄位的底層 HTML
                     let colsHtml = '';
                     for(let i=0; i<6; i++) {
                         let badges = rackSlots[u].fans[i].map(qty => `<span class="bg-teal-600/90 text-teal-50 text-[9px] px-0.5 rounded shadow z-0">🌀${qty}</span>`).join('');
-                        // 分割線設計
                         let borderStyle = i > 0 ? "border-l border-teal-800/30" : "";
                         colsHtml += `<div class="flex items-center justify-center w-1/6 h-full ${borderStyle}">${badges}</div>`;
                     }
 
-                    // 疊加在正上方的名稱浮水印 (避免名稱與風扇互搶空間跑版)
                     let titleHtml = rackSlots[u].isTop ? 
                         `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                             <span class="bg-teal-950/90 px-2 py-0.5 rounded text-[11px] truncate shadow-md max-w-[85%] border border-teal-800/50">${rackSlots[u].name}</span>
                         </div>` : 
                         `<div class="absolute inset-0 flex items-center justify-center pointer-events-none z-10 text-teal-700/60 text-[10px]">┆</div>`;
 
+                    let layerDbHtml = '';
+                    if (window.layerNoisePower[u] > 0) {
+                        let layerDb = 10 * Math.log10(window.layerNoisePower[u]);
+                        layerDbHtml = `
+                            <div class="flex items-baseline gap-1" title="此層 U 本身發出的總噪音">
+                                <span class="text-[12px] text-amber-400 font-bold">${layerDb.toFixed(1)}</span>
+                                <span class="text-[9px] text-amber-600/80">dBA</span>
+                            </div>
+                        `;
+                    }
+
                     slot.innerHTML = `
                         <div class="flex items-stretch w-full h-full relative">
-                            <div class="text-[11px] w-12 shrink-0 font-mono text-gray-400 flex items-center justify-center bg-gray-900/50">【${u}U】</div>
-                            
+                            <div class="w-24 shrink-0 font-mono text-gray-400 flex flex-row items-center justify-between px-2 bg-gray-900/50 py-1 border-r border-teal-700/30">
+                                <div class="text-[11px]">【${u}U】</div>
+                                ${layerDbHtml}
+                            </div>
                             <div class="flex flex-grow relative bg-teal-900/20">
                                 ${colsHtml}
                                 ${titleHtml}
@@ -478,8 +541,11 @@
                     `;
                 } else {
                     slot.className = "bg-gray-800 text-gray-600 border border-gray-700/40 flex items-stretch min-h-[32px]";
+                    
                     slot.innerHTML = `
-                        <div class="text-[11px] w-12 shrink-0 font-mono flex items-center justify-center bg-gray-900/50">【${u}U】</div>
+                        <div class="w-24 shrink-0 font-mono flex flex-row items-center justify-start px-2 bg-gray-900/50 border-r border-gray-700/30">
+                            <div class="text-[11px]">【${u}U】</div>
+                        </div>
                         <div class="flex-grow flex items-center justify-center text-[11px]">--- 空置 ---</div>
                     `;
                 }
